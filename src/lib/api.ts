@@ -62,6 +62,14 @@ export interface Report {
   findings: ReportFinding[];
 }
 
+export interface ScanResult {
+  project_id: number;
+  packages_scanned: number;
+  vulnerabilities_found: number;
+  vulnerable_packages: number;
+  message: string;
+}
+
 export const apiService = {
   healthCheck: () => api.get("/health"),
 
@@ -76,7 +84,7 @@ export const apiService = {
     api.post(`/projects/${projectId}/resolve`, { content }),
 
   scanVulnerabilities: (projectId: number) =>
-    api.post(`/projects/${projectId}/scan`),
+    api.post<ScanResult>(`/projects/${projectId}/scan`),
 
   getDependencies: (projectId: number) =>
     api.get(`/projects/${projectId}/dependencies`),
