@@ -7,7 +7,7 @@ import {
   Loader2
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { apiService, type ResolvedDep, type Report } from "@/lib/api";
+import { apiService, type ResolvedDep, type Report, type ScanResult } from "@/lib/api";
 import { FileUpload } from "@/components/FileUpload";
 import { DependencyTree } from "@/components/DependencyTree";
 import { DependencyGraph } from "@/components/DependencyGraph";
@@ -35,6 +35,10 @@ const Dashboard = () => {
   const [resolvedDeps, setResolvedDeps] = useState<ResolvedDep[]>([]);
   const [report, setReport] = useState<Report | null>(null);
   const [loading, setLoading] = useState(false);
+  const [isScanning, setIsScanning] = useState(false);
+  const [isLoadingReport, setIsLoadingReport] = useState(false);
+  const [scanResult, setScanResult] = useState<ScanResult | null>(null);
+  const [reportError, setReportError] = useState(false);
   const [showGraph, setShowGraph] = useState(false);
 
   const stepIndex = steps.findIndex((s) => s.key === currentStep);
@@ -87,18 +91,47 @@ const Dashboard = () => {
 
   const scanVulns = async () => {
     if (!projectId) return;
-    setLoading(true);
+    setIsScanning(true);
+    setScanResult(null);
+    setReportError(false);
     try {
       const { data } = await apiService.scanVulnerabilities(projectId);
+      setScanResult(data);
       toast.success(`Found ${data.vulnerabilities_found} vulnerabilities`);
-      // Fetch full report
+    } catch {
+      toast.error("Failed to scan for vulnerabilities");
+      return;
+    } finally {
+      setIsScanning(false);
+    }
+
+    // Scan succeeded — now load the report independently
+    setIsLoadingReport(true);
+    try {
       const reportRes = await apiService.getReport(projectId);
       setReport(reportRes.data);
       setCurrentStep("report");
     } catch {
-      toast.error("Failed to scan for vulnerabilities");
+      toast.error("Scan completed, but failed to load report. You can retry below.");
+      setReportError(true);
     } finally {
-      setLoading(false);
+      setIsLoadingReport(false);
+    }
+  };
+
+  const retryLoadReport = async () => {
+    if (!projectId) return;
+    setIsLoadingReport(true);
+    setReportError(false);
+    try {
+      const reportRes = await apiService.getReport(projectId);
+      setReport(reportRes.data);
+      setCurrentStep("report");
+    } catch {
+      toast.error("Failed to load report. Please try again.");
+      setReportError(true);
+    } finally {
+      setIsLoadingReport(false);
     }
   };
 
@@ -247,10 +280,10 @@ const Dashboard = () => {
                   </button>
                   <button
                     onClick={scanVulns}
-                    disabled={loading}
+                    disabled={isScanning || isLoadingReport}
                     className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-primary text-primary-foreground font-medium text-sm hover:opacity-90 transition-opacity disabled:opacity-50"
                   >
-                    {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />}
+                    {isScanning || isLoadingReport ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />}
                     Scan for Vulnerabilities
                   </button>
                 </div>
@@ -264,10 +297,35 @@ const Dashboard = () => {
                 </div>
               )}
 
-              {loading && (
+              {isScanning && (
                 <div className="glass-panel p-8 text-center">
                   <Loader2 className="w-8 h-8 animate-spin text-primary mx-auto mb-3" />
                   <p className="text-sm text-muted-foreground">Scanning packages against OSV.dev...</p>
+                </div>
+              )}
+
+              {scanResult && isLoadingReport && (
+                <div className="glass-panel p-8 text-center">
+                  <Loader2 className="w-8 h-8 animate-spin text-primary mx-auto mb-3" />
+                  <p className="text-sm text-muted-foreground">Loading security report...</p>
+                </div>
+              )}
+
+              {reportError && !isLoadingReport && (
+                <div className="glass-panel p-6 text-center space-y-3">
+                  <AlertTriangle className="w-8 h-8 text-yellow-500 mx-auto" />
+                  <p className="text-sm font-medium">
+                    Scan complete
+                    {scanResult ? ` — found ${scanResult.vulnerabilities_found} vulnerabilities` : ""}.
+                  </p>
+                  <p className="text-xs text-muted-foreground">Failed to load the full report. You can retry below.</p>
+                  <button
+                    onClick={retryLoadReport}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm hover:opacity-90 transition-opacity"
+                  >
+                    <ArrowLeft className="w-4 h-4 rotate-180" />
+                    Retry Load Report
+                  </button>
                 </div>
               )}
             </motion.div>
