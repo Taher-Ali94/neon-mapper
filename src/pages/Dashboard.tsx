@@ -93,7 +93,6 @@ const Dashboard = () => {
       toast.success(`Found ${data.vulnerabilities_found} vulnerabilities`);
     } catch {
       toast.error("Failed to scan for vulnerabilities");
-      setLoading(false);
       return;
     } finally {
       setLoading(false);
