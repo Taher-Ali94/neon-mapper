@@ -91,14 +91,20 @@ const Dashboard = () => {
     try {
       const { data } = await apiService.scanVulnerabilities(projectId);
       toast.success(`Found ${data.vulnerabilities_found} vulnerabilities`);
-      // Fetch full report
-      const reportRes = await apiService.getReport(projectId);
-      setReport(reportRes.data);
-      setCurrentStep("report");
     } catch {
       toast.error("Failed to scan for vulnerabilities");
+      return;
     } finally {
       setLoading(false);
+    }
+    try {
+      const reportRes = await apiService.getReport(projectId);
+      setReport(reportRes.data);
+    } catch {
+      toast.error("Scan complete but failed to load the report. Try refreshing.");
+    } finally {
+      setLoading(false);
+      setCurrentStep("report");
     }
   };
 
@@ -304,7 +310,7 @@ const Dashboard = () => {
               <div className="glass-panel p-5">
                 <p className="text-sm font-medium mb-3">Severity Breakdown</p>
                 <div className="flex gap-3">
-                  {["CRITICAL", "HIGH", "MEDIUM", "LOW"].map((s) => {
+                  {["CRITICAL", "HIGH", "MEDIUM", "LOW", "NONE"].map((s) => {
                     const count = report.severity_counts?.[s] || 0;
                     const total = report.total_vulnerabilities || 1;
                     return (
@@ -321,7 +327,8 @@ const Dashboard = () => {
                             className={`h-full rounded-full ${
                               s === "CRITICAL" ? "bg-severity-critical" :
                               s === "HIGH" ? "bg-severity-high" :
-                              s === "MEDIUM" ? "bg-severity-medium" : "bg-severity-low"
+                              s === "MEDIUM" ? "bg-severity-medium" :
+                              s === "LOW" ? "bg-severity-low" : "bg-muted-foreground"
                             }`}
                           />
                         </div>
